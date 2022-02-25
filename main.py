@@ -1,6 +1,6 @@
+from http.cookiejar import MozillaCookieJar
 import os
-
-from cv2 import FileStorage
+from do_straighten import make_straight
 from flask import url_for, Flask, request, redirect, flash, send_from_directory, send_file
 UPLOAD_FOLDER = 'uploads'
 from io import BytesIO
@@ -39,8 +39,10 @@ def upload_file():
             <!doctype html>
             <title>Finished</title>
             <h1>Finished!</h1>
-            <script> document.image_url ="''' + url_for('download_file', name=filename) + '''" </script>
-            <img src=''' + url_for('download_file', name=filename) + ''' height=400> </img>
+            <script> document.image_url ="''' + url_for('download_file', name=filename).split('/')[-1] + '''" </script>
+            <div id="holder" style="height:400px">
+            <img src=''' + url_for('download_file', name=filename) + ''' height=400 style="position:absolute; z-index:-1;"> </img>
+            </div>
             <p> When finished, click this button </p>
             <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
             <script>
@@ -48,27 +50,36 @@ def upload_file():
 
 
 
-            $('img').on('click', function(e) {
+            $('#holder').on('click', function(e) {
+                console.log(e)
                 e.preventDefault()
                 document.corners.push(e)
+                let test = document.createElement("div");
+                document.getElementById("holder").append(test)
+                test.innerHTML = document.corners.length;
+                test.style.height = "10px";
+                test.style.width = "10px";
+                test.style.left = e.clientX + "px"
+                test.style.top = e.clientY + "px"
+                test.style.zIndex = document.corners.length;
+                test.style.position = "absolute";
+                test.style.backgroundColor = "red";
                 if (document.corners.length == 4){
                     res_str = ""
                     document.corners.forEach(corner=>{
                         res_str += corner.offsetX + "&" + corner.offsetY + "-"
                     })
+                    res_str += document.image_url;
                     $.getJSON('/submit/' + res_str,
                         function(data) {
+                            console.log("Stuff heard back")
                             //do nothing
                             console.log(data);
                         });
                 }
                 return false;
             });
-            
-
-
             </script>
-            <button type="button" onclick="">Submit</button>
             '''
     return '''
     <!doctype html>
@@ -86,13 +97,13 @@ def download_file(name):
 @app.route('/current.jpeg')
 def return_image():
     print(curr_file)
-
     return send_file(curr_file[0], download_name="current.jpeg")
 
 @app.route('/submit/<string>')
 def submit(string):
-    print(string)
-    return f"{string}"
+    img, fp = make_straight(string)
+    img.save("straight/" + fp)
+    return string
 
 
 if __name__ == "__main__":
